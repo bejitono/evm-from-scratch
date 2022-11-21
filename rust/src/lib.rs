@@ -1,6 +1,42 @@
 use primitive_types::U256;
 use std::{fmt::Write, str::FromStr, clone};
 
+struct MemoryError;
+
+struct Memory {
+    memory: Vec<U256>,
+}
+
+impl Memory {
+    fn store(mut self, offset: usize, value: U256) -> Result<bool, MemoryError> {
+        // let max = U256::max_value();
+
+        if offset < 0 { //|| offset > max
+            return Err(MemoryError);
+        }
+
+        if value < U256::from(0) {
+            return Err(MemoryError);
+        }
+
+        self.memory[offset] = value;
+
+        Ok(true)
+    }
+
+    fn load(self, offset: usize) -> Result<U256, MemoryError> {
+        if offset < 0 {
+            return Err(MemoryError);
+        }
+
+        if offset >= self.memory.len() {
+            return Ok(U256::from(0));
+        }
+        
+        return Ok(self.memory[offset]);
+    }
+}
+
 pub fn evm(code: impl AsRef<[u8]>) -> Vec<U256> {
 
     // TODO: Implement me

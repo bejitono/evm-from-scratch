@@ -242,8 +242,8 @@ pub fn evm(code: impl AsRef<[u8]>) -> Vec<U256> {
                         pc += 1;
                     }
                 },
-                "7F" => {
-                    let data = &code.as_ref()[pc + 1 .. pc + 32];
+                "7F" => { // push32
+                    let data = &code.as_ref()[pc + 1 .. pc + 33];
                     let value = U256::from(data);
                     stack.push(value);
                     pc += 32;
@@ -273,8 +273,6 @@ pub fn evm(code: impl AsRef<[u8]>) -> Vec<U256> {
                             Err(error) => panic!("Failed to mstore"),
                         };
                         println!("{success}");
-
-                        // pc += 1;
                     }
                 },
                 "56" => {

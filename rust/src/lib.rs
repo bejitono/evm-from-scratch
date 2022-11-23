@@ -8,7 +8,7 @@ struct Memory {
 }
 
 impl Memory {
-    fn store(mut self, offset: usize, value: U256) -> Result<bool, MemoryError> {
+    fn store(&mut self, offset: usize, value: U256) -> Result<bool, MemoryError> {
         // let max = U256::max_value();
 
         if offset < 0 { //|| offset > max
@@ -19,12 +19,13 @@ impl Memory {
             return Err(MemoryError);
         }
 
-        self.memory[offset] = value;
+        // self.memory[offset] = value;
+        self.memory.push(value);
 
         Ok(true)
     }
 
-    fn load(self, offset: usize) -> Result<U256, MemoryError> {
+    fn load(&self, offset: usize) -> Result<U256, MemoryError> {
         if offset < 0 {
             return Err(MemoryError);
         }
@@ -45,6 +46,8 @@ pub fn evm(code: impl AsRef<[u8]>) -> Vec<U256> {
     let mut opcode: String = String::new();
     
     let mut pc: usize = 0;
+
+    let mut memory = Memory{ memory: vec![], };
 
     // for (i, data) in code.as_ref().iter().enumerate() {
     while pc < code.as_ref().len() {
@@ -245,9 +248,34 @@ pub fn evm(code: impl AsRef<[u8]>) -> Vec<U256> {
                     stack.push(value);
                     pc += 32;
                 },
+                "51" => { // mload
+                    let offset = stack.pop();
+                    if let Some(offset) = offset {
+                        let loaded_value = &memory.load(offset.as_usize());
+
+                        let value = match loaded_value {
+                            Ok(value) => value,
+                            Err(error) => panic!("Problem loading"),
+                        };
+                        println!("value: {}", value);
+                        stack.push(*value);
+                    }
+                },
                 "52" => { // mstore
                     let offset = stack.pop();
-                    
+                    let value = stack.pop();
+                    if let (Some(offset), Some(value)) = (offset, value) {
+                        println!("offset: {}", offset);
+                        println!("value: {}", value);
+                        let result = &memory.store(offset.as_usize(), value);
+                        let success = match result {
+                            Ok(success) => success,
+                            Err(error) => panic!("Failed to mstore"),
+                        };
+                        println!("{success}");
+
+                        // pc += 1;
+                    }
                 },
                 "56" => {
                     let destination = stack.pop();
@@ -414,3 +442,12 @@ fn return_ownership(string: String) -> String {
 }
 
 
+fn hello() {
+    let hi = String::from("fsdfsds");
+    let length = take_string(&hi);
+
+}
+
+fn take_string(string: &String) -> usize {
+    return string.len();
+}

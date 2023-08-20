@@ -4,40 +4,24 @@ use primitive_types::U256;
 
 struct MemoryError;
 
-#[derive(Debug, Clone)]
-struct Memory {
-    memory: HashMap<usize, U256>,
+#[derive(Debug, Clone)]struct Memory {
+    memory: Vec<u8>,
 }
 
 impl Memory {
     fn new() -> Self {
-        Self { memory: HashMap::new() }
+        Self { memory: Vec::with_capacity(4 * 1024) }
     }
 
-    fn store(&mut self, offset: usize, value: U256) -> Result<(), MemoryError> {
-        // let max = U256::max_value();
-
-        if value < U256::from(0) {
-            return Err(MemoryError);
+    pub fn store(&mut self, offset: usize, value: &[u8]) {
+        if offset + value.len() > self.memory.len() {
+            self.memory.resize(offset + value.len(), 0);
         }
-
-        self.memory.insert(offset, value);
-        // self.memory[offset] = value;
-
-        Ok(())
+        self.memory[offset..(value.len() + offset)].copy_from_slice(value);
     }
 
-    fn load(&self, offset: usize) -> Result<U256, MemoryError> {
-
-        if offset >= self.memory.len() {
-            return Ok(U256::from(0));
-        }
-
-        let Some(value) = self.memory.get(&offset) else {
-            return Err(MemoryError);
-        };
-        
-        return Ok(value.clone());
+    pub fn load(&self, offset: usize, size: usize) -> &[u8] {
+        &self.memory[offset..offset + size]
     }
 }
 
@@ -256,13 +240,10 @@ impl RustEVM {
                         let offset = stack.pop();
                         if let Some(offset) = offset {
                             println!("loading at offset: {}", offset);
-                            let value = self.memory.load(offset.as_usize());
-
-                            let value = match value {
-                                Ok(value) => value,
-                                Err(_) => panic!("Load error"),
-                            };
-                            stack.push(value);
+                            let value = self.memory.load(offset.as_usize(), 32 - offset.as_usize());
+                            let big_value = U256::from_big_endian(value.clone());
+                            println!("loaded value: {}", big_value);
+                            stack.push(big_value);
                         }
                     },
                     MSTORE => {
@@ -270,7 +251,9 @@ impl RustEVM {
                         let value = stack.pop();
                         if let (Some(offset), Some(value)) = (offset, value) {
                             println!("saving at offset: {}", offset);
-                            self.memory.store(offset.as_usize(), value);
+                            let mut bytes = [0u8; 32];
+                            value.to_big_endian(&mut bytes);
+                            self.memory.store(offset.as_usize(), &bytes);
                         }
                     },
                     JUMP => {

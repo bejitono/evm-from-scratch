@@ -1,4 +1,4 @@
-use evm::evm;
+use evm::RustEVM;
 use primitive_types::U256;
 use serde::Deserialize;
 
@@ -28,13 +28,14 @@ fn main() {
     let data: Vec<Evmtest> = serde_json::from_str(&text).unwrap();
 
     let total = data.len();
+    let evm = RustEVM::new();
 
     for (index, test) in data.iter().enumerate() {
         println!("Test {} of {}: {}", index + 1, total, test.name);
 
         let code: Vec<u8> = hex::decode(&test.code.bin).unwrap();
 
-        let actual_stack = evm(&code);
+        let actual_stack = evm.clone().evaluate(&code);
 
         let mut expected_stack: Vec<U256> = Vec::new();
         if let Some(ref stacks) = test.expect.stack {

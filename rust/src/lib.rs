@@ -1,363 +1,379 @@
+use std::collections::HashMap;
+
 use primitive_types::U256;
-use std::{fmt::Write};
 
 struct MemoryError;
 
+#[derive(Debug, Clone)]
 struct Memory {
-    memory: Vec<U256>,
+    memory: HashMap<usize, U256>,
 }
 
 impl Memory {
-    fn store(mut self, offset: usize, value: U256) -> Result<bool, MemoryError> {
-        // let max = U256::max_value();
+    fn new() -> Self {
+        Self { memory: HashMap::new() }
+    }
 
-        if offset < 0 { //|| offset > max
-            return Err(MemoryError);
-        }
+    fn store(&mut self, offset: usize, value: U256) -> Result<(), MemoryError> {
+        // let max = U256::max_value();
 
         if value < U256::from(0) {
             return Err(MemoryError);
         }
 
-        self.memory[offset] = value;
+        self.memory.insert(offset, value);
+        // self.memory[offset] = value;
 
-        Ok(true)
+        Ok(())
     }
 
-    fn load(self, offset: usize) -> Result<U256, MemoryError> {
-        if offset < 0 {
-            return Err(MemoryError);
-        }
+    fn load(&self, offset: usize) -> Result<U256, MemoryError> {
 
         if offset >= self.memory.len() {
             return Ok(U256::from(0));
         }
+
+        let Some(value) = self.memory.get(&offset) else {
+            return Err(MemoryError);
+        };
         
-        return Ok(self.memory[offset]);
+        return Ok(value.clone());
     }
 }
 
-pub fn evm(code: impl AsRef<[u8]>) -> Vec<U256> {
+#[derive(Debug, Clone)]
+pub struct RustEVM {
+    memory: Memory,
+}
 
-    // TODO: Implement me
-    let mut stack: Vec<U256> = Vec::new();
+impl RustEVM {
+    pub fn new() -> Self {
+        RustEVM { memory: Memory::new() }
+    }
 
-    let mut opcode: u8 = 0;
-    
-    let mut pc: usize = 0;
+    pub fn evaluate(mut self, code: &[u8]) -> Vec<U256> {
 
-    let mut memory = &Memory{ memory: vec![], };
+        // TODO: Implement me
+        let mut stack: Vec<U256> = Vec::new();
 
-    while pc < code.as_ref().len() {
-            opcode = code.as_ref()[pc];
+        let mut opcode: u8 = 0;
+        
+        let mut pc: usize = 0;
 
-            println!("starting operation {}", opcode);
-            match opcode {
-                STOP => {
-                    pc += 1;
-                    break;
-                },
-                ADD => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    if let (Some(a), Some(b)) = (a, b) {
-                        let result = a + b;
-                        stack.push(result);
+        while pc < code.as_ref().len() {
+                opcode = code.as_ref()[pc];
+
+                println!("starting operation");
+                match opcode {
+                    STOP => {
                         pc += 1;
-                    }
-                },
-                POP => {
-                    stack.pop();
-                },
-                MUL => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    if let (Some(a), Some(b)) = (a, b) {
-                        let result = a * b;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                SUB => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    if let (Some(a), Some(b)) = (a, b) {
-                        let result = a - b;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                DIV | SDIV => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        if b == U256::from(0) {
-                            stack.push(U256::from(0));
+                        break;
+                    },
+                    ADD => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        if let (Some(a), Some(b)) = (a, b) {
+                            let result = a + b;
+                            stack.push(result);
                             pc += 1;
-                            continue
                         }
-
-                        let result = a / b;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                MOD | SMOD => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        if b == U256::from(0) {
-                            stack.push(U256::from(0));
+                    },
+                    POP => {
+                        stack.pop();
+                    },
+                    MUL => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        if let (Some(a), Some(b)) = (a, b) {
+                            let result = a * b;
+                            stack.push(result);
                             pc += 1;
-                            continue
                         }
+                    },
+                    SUB => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        if let (Some(a), Some(b)) = (a, b) {
+                            let result = a - b;
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    DIV | SDIV => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            if b == U256::from(0) {
+                                stack.push(U256::from(0));
+                                pc += 1;
+                                continue
+                            }
 
-                        let result = a % b;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                LT => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        println!("a {}", a);
-                        println!("b {}", b);
-                        let boolean = if a < b { U256::from(1) } else { U256::from(0) };
-                        stack.push(boolean);
-                        pc += 1;
-                    }
-                },
-                SLT => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        println!("a {}", a);
-                        println!("b {}", b);
-                        let boolean = if a > b { U256::from(1) } else { U256::from(0) };
-                        stack.push(boolean);
-                        pc += 1;
-                    }
-                },
-                GT | SGT => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        let boolean = if a > b { U256::from(1) } else { U256::from(0) };
-                        stack.push(boolean);
-                        pc += 1;
-                    }
-                },
-                EQ => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        println!("a {}", a);
-                        println!("b {}", b);
-                        let boolean = if a == b { U256::from(1) } else { U256::from(0) };
-                        stack.push(boolean);
-                        pc += 1;
-                    }
-                },
-                ISZERO => {
-                    let a = stack.pop();
-                    
-                    if let Some(a) = a {
-                        let boolean = if a == U256::from(0) { U256::from(1) } else { U256::from(0) };
-                        stack.push(boolean);
-                        pc += 1;
-                    }
-                },
-                AND => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        println!("a {}", a);
-                        println!("b {}", b);
-                        let result = a & b;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                OR => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        println!("a {}", a);
-                        println!("b {}", b);
-                        let result = a | b;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                XOR => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        println!("a {}", a);
-                        println!("b {}", b);
-                        let result = a ^  b;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                NOT => {
-                    let a = stack.pop();
-                    
-                    if let Some(a) = a {
-                        println!("a {}", a);
-                        let result = !a;
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                BYTE => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        println!("a {}", a);
-                        println!("b {}", b);
-                        let result = (b >> (U256::from(248) - a * 8)) & U256::from(255);
-                        // y = (x >> (248 - i * 8)) & 0xFF
-                        println!("result {}", result);
-                        stack.push(result);
-                        pc += 1;
-                    }
-                },
-                PUSH32 => {
-                    let data = &code.as_ref()[pc + 1 .. pc + 32];
-                    let value = U256::from(data);
-                    stack.push(value);
-                    pc += 32;
-                },
-                // "51" => { // mload
-                //     let offset = stack.pop();
-                //     if let Some(offset) = offset {
-                //         let value = memory.load(offset.as_usize());
+                            let result = a / b;
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    MOD | SMOD => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            if b == U256::from(0) {
+                                stack.push(U256::from(0));
+                                pc += 1;
+                                continue
+                            }
 
-                //         match value {sdfds
-                //             Ok(value) => stack.push(value);
-                //             Err(err) => panic!("Load error: {:?}", error);
-                //         };
-                //     }
-                // },
-                // "52" => { // mstore
-                //     let offset = stack.pop();
-                //     let value = stack.pop();
-                //     if let (Some(offset), Some(value)) = (offset, value) {
-                //         memory.store(offset.as_usize(), value);
-                //     }
-                // },
-                JUMP => {
-                    let destination = stack.pop();
-                    if let Some(destination) = destination {
-                        pc = destination.as_usize();
-                    }
-                },
-                JUMPI => {
-                    let destination = stack.pop();
-                    let condition = stack.pop();
-                    if let (Some(destination), Some(condition)) = (destination, condition)  {
-                        if condition == U256::from(1) {
+                            let result = a % b;
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    LT => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            println!("a {}", a);
+                            println!("b {}", b);
+                            let boolean = if a < b { U256::from(1) } else { U256::from(0) };
+                            stack.push(boolean);
+                            pc += 1;
+                        }
+                    },
+                    SLT => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            println!("a {}", a);
+                            println!("b {}", b);
+                            let boolean = if a > b { U256::from(1) } else { U256::from(0) };
+                            stack.push(boolean);
+                            pc += 1;
+                        }
+                    },
+                    GT | SGT => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            let boolean = if a > b { U256::from(1) } else { U256::from(0) };
+                            stack.push(boolean);
+                            pc += 1;
+                        }
+                    },
+                    EQ => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            println!("a {}", a);
+                            println!("b {}", b);
+                            let boolean = if a == b { U256::from(1) } else { U256::from(0) };
+                            stack.push(boolean);
+                            pc += 1;
+                        }
+                    },
+                    ISZERO => {
+                        let a = stack.pop();
+                        
+                        if let Some(a) = a {
+                            let boolean = if a == U256::from(0) { U256::from(1) } else { U256::from(0) };
+                            stack.push(boolean);
+                            pc += 1;
+                        }
+                    },
+                    AND => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            println!("a {}", a);
+                            println!("b {}", b);
+                            let result = a & b;
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    OR => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            println!("a {}", a);
+                            println!("b {}", b);
+                            let result = a | b;
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    XOR => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            println!("a {}", a);
+                            println!("b {}", b);
+                            let result = a ^  b;
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    NOT => {
+                        let a = stack.pop();
+                        
+                        if let Some(a) = a {
+                            println!("a {}", a);
+                            let result = !a;
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    BYTE => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            println!("a {}", a);
+                            println!("b {}", b);
+                            let result = (b >> (U256::from(248) - a * 8)) & U256::from(255);
+                            // y = (x >> (248 - i * 8)) & 0xFF
+                            println!("result {}", result);
+                            stack.push(result);
+                            pc += 1;
+                        }
+                    },
+                    PUSH32 => {
+                        let data = &code.as_ref()[pc + 1 .. pc + 33];
+                        let value = U256::from(data);
+                        stack.push(value);
+                        pc += 32;
+                    },
+                    MLOAD => {
+                        let offset = stack.pop();
+                        if let Some(offset) = offset {
+                            println!("loading at offset: {}", offset);
+                            let value = self.memory.load(offset.as_usize());
+
+                            let value = match value {
+                                Ok(value) => value,
+                                Err(_) => panic!("Load error"),
+                            };
+                            stack.push(value);
+                        }
+                    },
+                    MSTORE => {
+                        let offset = stack.pop();
+                        let value = stack.pop();
+                        if let (Some(offset), Some(value)) = (offset, value) {
+                            println!("saving at offset: {}", offset);
+                            self.memory.store(offset.as_usize(), value);
+                        }
+                    },
+                    JUMP => {
+                        let destination = stack.pop();
+                        if let Some(destination) = destination {
                             pc = destination.as_usize();
                         }
-                    }
-                },
-                PC => {
-                    let pc = pc.clone();
-                    stack.push(U256::from(pc));
-                },
-                // "5B" => {
-                //     // let destination = stack.pop();
-                //     // if let Some(destination) = destination {
-                //     //     println!("jump {}", destination);
-                //     //     pc = destination.as_usize();
-                //     // }
-                // },
-                PUSH1 => {
-                    let next_value = code.as_ref().get(pc + 1);
-                    if let Some(value) = next_value {
-                        let value = U256::from_big_endian(&[*value]);
-                        let bigint = value;
-                        stack.push(bigint);
+                    },
+                    JUMPI => {
+                        let destination = stack.pop();
+                        let condition = stack.pop();
+                        if let (Some(destination), Some(condition)) = (destination, condition)  {
+                            if condition == U256::from(1) {
+                                pc = destination.as_usize();
+                            }
+                        }
+                    },
+                    PC => {
+                        let pc = pc.clone();
+                        stack.push(U256::from(pc));
+                    },
+                    // "5B" => {
+                    //     // let destination = stack.pop();
+                    //     // if let Some(destination) = destination {
+                    //     //     println!("jump {}", destination);
+                    //     //     pc = destination.as_usize();
+                    //     // }
+                    // },
+                    PUSH1 => {
+                        let next_value = code.as_ref().get(pc + 1);
+                        if let Some(value) = next_value {
+                            let value = U256::from_big_endian(&[*value]);
+                            let bigint = value;
+                            stack.push(bigint);
+                            pc += 1;
+                        }
+                    },
+                    PUSH2 => {
+                        let data = &code.as_ref()[pc + 1 .. pc + 2];
+                        let value = U256::from(data);
+                        stack.push(value);
+                        pc += 2;
+                    },
+                    DUP1 => {
+                        let latest = stack.pop();
+                        if let Some(value) = latest {
+                            let dup = value.clone();
+                            stack.push(value + dup);
+                            pc += 1;
+                        }
+                    },
+                    DUP2 => {
+                        let second_last = stack.get(stack.len() - 2);
+                        if let Some(value) = second_last {
+                            let dup = value.clone();
+                            stack.push(dup);
+                            pc += 1;
+                        }
+                    },
+                    DUP3 => {
+                        let second_last = stack.get(stack.len() - 3);
+                        if let Some(value) = second_last {
+                            let dup = value.clone();
+                            stack.push(dup);
+                            pc += 1;
+                        }
+                    },
+                    SWAP1 => {
+                        let a = stack.pop();
+                        let b = stack.pop();
+                        
+                        if let (Some(a), Some(b)) = (a, b) {
+                            stack.push(a);
+                            stack.push(b);
+                            pc += 1;
+                        }
+                    },
+                    SWAP3 => {
+                        let b = stack.remove(3);
+                        let a = stack.remove(0);
+                        // let b = stack.get(2);
+                        
+                        stack.insert(0, b);
+                        stack.insert(3, a);
                         pc += 1;
+                    },
+                    _ => {
+                        break
                     }
-                },
-                PUSH2 => {
-                    let data = &code.as_ref()[pc + 1 .. pc + 2];
-                    let value = U256::from(data);
-                    stack.push(value);
-                    pc += 2;
-                },
-                DUP1 => {
-                    let latest = stack.pop();
-                    if let Some(value) = latest {
-                        let dup = value.clone();
-                        stack.push(value + dup);
-                        pc += 1;
-                    }
-                },
-                DUP2 => {
-                    let second_last = stack.get(stack.len() - 2);
-                    if let Some(value) = second_last {
-                        let dup = value.clone();
-                        stack.push(dup);
-                        pc += 1;
-                    }
-                },
-                DUP3 => {
-                    let second_last = stack.get(stack.len() - 3);
-                    if let Some(value) = second_last {
-                        let dup = value.clone();
-                        stack.push(dup);
-                        pc += 1;
-                    }
-                },
-                SWAP1 => {
-                    let a = stack.pop();
-                    let b = stack.pop();
-                    
-                    if let (Some(a), Some(b)) = (a, b) {
-                        stack.push(a);
-                        stack.push(b);
-                        pc += 1;
-                    }
-                },
-                SWAP3 => {
-                    let b = stack.remove(3);
-                    let a = stack.remove(0);
-                    // let b = stack.get(2);
-                    
-                    stack.insert(0, b);
-                    stack.insert(3, a);
-                    pc += 1;
-                },
-                _ => {
-                    break
                 }
-            }
 
-            for v in &stack {
-                println!("stack value {:#X},", v);
-            };
+                for v in &stack {
+                    println!("stack value {:#X},", v);
+                };
 
-            pc += 1;
-        //     continue
-        // }
+                pc += 1;
+            //     continue
+            // }
 
+        }
+        
+        return stack.into_iter().rev().collect();
     }
-    
-    return stack.into_iter().rev().collect();
 }
 
 // revm

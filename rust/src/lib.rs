@@ -17,6 +17,13 @@ impl Memory {
         self.memory[offset..(value.len() + offset)].copy_from_slice(value);
     }
 
+    pub fn store8(&mut self, offset: usize, value: u8) {
+        if offset >= self.memory.len() {
+            self.memory.resize(offset + 1, 0);
+        }
+        self.memory[offset] = value;
+    }
+
     pub fn load(&self, offset: usize, size: usize) -> [u8; 32] {
         let mut result = [0u8; 32];
         let end = std::cmp::min(self.memory.len(), offset + size);
@@ -255,6 +262,17 @@ impl RustEVM {
                             self.memory.store(offset.as_usize(), &bytes);
                         }
                     },
+                    MSTORE8 => {
+                        let offset = stack.pop();
+                        let value = stack.pop();
+                        if let (Some(offset), Some(value)) = (offset, value) {
+                            println!("saving at value at offset: {} {}", value, offset);
+                            let mut bytes = [0u8; 32];
+                            value.to_big_endian(&mut bytes);
+                            let last_byte = bytes[31]; // Extract the last byte of the U256 value
+                            self.memory.store8(offset.as_usize(), last_byte);
+                        }
+                    }
                     JUMP => {
                         let destination = stack.pop();
                         if let Some(destination) = destination {

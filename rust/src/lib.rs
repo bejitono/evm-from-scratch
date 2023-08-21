@@ -1,10 +1,7 @@
-use std::collections::HashMap;
-
 use primitive_types::U256;
 
-struct MemoryError;
-
-#[derive(Debug, Clone)]struct Memory {
+#[derive(Debug, Clone)]
+struct Memory {
     memory: Vec<u8>,
 }
 
@@ -20,8 +17,11 @@ impl Memory {
         self.memory[offset..(value.len() + offset)].copy_from_slice(value);
     }
 
-    pub fn load(&self, offset: usize, size: usize) -> &[u8] {
-        &self.memory[offset..offset + size]
+    pub fn load(&self, offset: usize, size: usize) -> [u8; 32] {
+        let mut result = [0u8; 32];
+        let end = std::cmp::min(self.memory.len(), offset + size);
+        result[..end-offset].copy_from_slice(&self.memory[offset..end]);
+        result
     }
 }
 
@@ -37,7 +37,6 @@ impl RustEVM {
 
     pub fn evaluate(mut self, code: &[u8]) -> Vec<U256> {
 
-        // TODO: Implement me
         let mut stack: Vec<U256> = Vec::new();
 
         let mut opcode: u8 = 0;
@@ -241,7 +240,7 @@ impl RustEVM {
                         if let Some(offset) = offset {
                             println!("loading at offset: {}", offset);
                             let value = self.memory.load(offset.as_usize(), 32 - offset.as_usize());
-                            let big_value = U256::from_big_endian(value.clone());
+                            let big_value = U256::from_big_endian(&value);
                             println!("loaded value: {}", big_value);
                             stack.push(big_value);
                         }
@@ -357,6 +356,7 @@ impl RustEVM {
         
         return stack.into_iter().rev().collect();
     }
+    
 }
 
 // revm

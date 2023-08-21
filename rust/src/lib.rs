@@ -30,6 +30,10 @@ impl Memory {
         result[..end-offset].copy_from_slice(&self.memory[offset..end]);
         result
     }
+
+    pub fn size(&self) -> usize {
+        self.memory.len()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -272,6 +276,10 @@ impl RustEVM {
                             let last_byte = bytes[31]; // Extract the last byte of the U256 value
                             self.memory.store8(offset.as_usize(), last_byte);
                         }
+                    }
+                    MSIZE => {
+                        let msize = self.memory.size();
+                        stack.push(U256::from(msize))
                     }
                     JUMP => {
                         let destination = stack.pop();

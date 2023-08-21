@@ -1,4 +1,4 @@
-use evm::{RustEVM, Tx};
+use evm::{RustEVM, Tx, State};
 use primitive_types::U256;
 use serde::Deserialize;
 
@@ -8,6 +8,7 @@ struct Evmtest {
     code: Code,
     expect: Expect,
     tx: Option<Tx>,
+    state: Option<State>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,7 +37,7 @@ fn main() {
 
         let code: Vec<u8> = hex::decode(&test.code.bin).unwrap();
 
-        let actual_stack = evm.clone().evaluate(&code, &test.tx);
+        let actual_stack = evm.clone().evaluate(&code, &test.tx, &test.state);
 
         let mut expected_stack: Vec<U256> = Vec::new();
         if let Some(ref stacks) = test.expect.stack {

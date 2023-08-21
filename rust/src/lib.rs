@@ -1,5 +1,6 @@
-use std::str::FromStr;
+use std::{str::FromStr, collections::HashMap};
 
+use ethers::abi::AbiEncode;
 use primitive_types::U256;
 use serde::Deserialize;
 
@@ -47,6 +48,14 @@ pub struct Tx {
 }
 
 
+#[derive(Debug, Deserialize)]
+pub struct State(HashMap<String, Account>);
+
+#[derive(Debug, Deserialize)]
+pub struct Account {
+    pub balance: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct RustEVM {
     memory: Memory,
@@ -57,7 +66,7 @@ impl RustEVM {
         RustEVM { memory: Memory::new() }
     }
 
-    pub fn evaluate(mut self, code: &[u8], tx: &Option<Tx>) -> Vec<U256> {
+    pub fn evaluate(mut self, code: &[u8], tx: &Option<Tx>, state: &Option<State>) -> Vec<U256> {
 
         let mut stack: Vec<U256> = Vec::new();
 
@@ -257,6 +266,12 @@ impl RustEVM {
                         stack.push(value);
                         pc += 32;
                     },
+                    PUSH20 => {
+                        let data = &code[pc + 1 .. pc + 21];
+                        let value = U256::from(data);
+                        stack.push(value);
+                        pc += 20;
+                    },
                     MLOAD => {
                         let offset = stack.pop();
                         if let Some(offset) = offset {
@@ -390,6 +405,25 @@ impl RustEVM {
                         }
                         pc += 1;
                     },
+                    BALANCE => {
+                        let Some(address_value) = stack.pop() else {
+                            continue;
+                        };
+                        
+                        let eth_address = self.toAddress(address_value);
+
+                        println!("address: {:?}", eth_address);
+                        println!("state: {:?}", state);
+
+                        if let Some(account) = state.as_ref().and_then(|s: &State| s.0.get(&eth_address.to_lowercase())) {
+                            let balance = account.balance.clone().unwrap();
+                            // println!("balance: {}", account.balance.unwrap());
+                            stack.push(U256::from_str(&balance).unwrap())
+                        } else {
+                            stack.push(U256::from(0))
+                        }
+                        pc += 1;
+                    },
                     _ => {
                         break
                     }
@@ -406,6 +440,17 @@ impl RustEVM {
         }
         
         return stack.into_iter().rev().collect();
+    }
+
+    fn toAddress(&self, address_value: U256) -> String {
+        let mut bytes = [0u8; 32];
+        address_value.to_big_endian(&mut bytes);
+        
+        let hex_str = hex::encode(bytes);
+        
+        let address = &hex_str[hex_str.len() - 40..];
+        let eth_address = format!("0x{}", address);
+        eth_address
     }
     
 }

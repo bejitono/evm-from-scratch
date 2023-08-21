@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use primitive_types::U256;
+use serde::Deserialize;
 
 #[derive(Debug, Clone)]
 struct Memory {
@@ -36,6 +39,14 @@ impl Memory {
     }
 }
 
+
+#[derive(Debug, Deserialize)]
+pub struct Tx {
+    pub from: Option<String>,
+    pub to: Option<String>,
+}
+
+
 #[derive(Debug, Clone)]
 pub struct RustEVM {
     memory: Memory,
@@ -46,7 +57,7 @@ impl RustEVM {
         RustEVM { memory: Memory::new() }
     }
 
-    pub fn evaluate(mut self, code: &[u8]) -> Vec<U256> {
+    pub fn evaluate(mut self, code: &[u8], tx: &Option<Tx>) -> Vec<U256> {
 
         let mut stack: Vec<U256> = Vec::new();
 
@@ -54,8 +65,8 @@ impl RustEVM {
         
         let mut pc: usize = 0;
 
-        while pc < code.as_ref().len() {
-                opcode = code.as_ref()[pc];
+        while pc < code.len() {
+                opcode = code[pc];
 
                 println!("starting operation");
                 match opcode {
@@ -241,7 +252,7 @@ impl RustEVM {
                         }
                     },
                     PUSH32 => {
-                        let data = &code.as_ref()[pc + 1 .. pc + 33];
+                        let data = &code[pc + 1 .. pc + 33];
                         let value = U256::from(data);
                         stack.push(value);
                         pc += 32;
@@ -308,7 +319,7 @@ impl RustEVM {
                     //     // }
                     // },
                     PUSH1 => {
-                        let next_value = code.as_ref().get(pc + 1);
+                        let next_value = code.get(pc + 1);
                         if let Some(value) = next_value {
                             let value = U256::from_big_endian(&[*value]);
                             let bigint = value;
@@ -317,7 +328,7 @@ impl RustEVM {
                         }
                     },
                     PUSH2 => {
-                        let data = &code.as_ref()[pc + 1 .. pc + 2];
+                        let data = &code[pc + 1 .. pc + 2];
                         let value = U256::from(data);
                         stack.push(value);
                         pc += 2;
@@ -363,6 +374,20 @@ impl RustEVM {
                         
                         stack.insert(0, b);
                         stack.insert(3, a);
+                        pc += 1;
+                    },
+                    ADDRESS => {
+                        if let Some(address) = tx.as_ref().and_then(|t| t.to.clone()) {
+                            println!("address: {}", address);
+                            stack.push(U256::from_str(&address).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    CALLER => {
+                        if let Some(from) = tx.as_ref().and_then(|t| t.from.clone()) {
+                            println!("from: {}", from);
+                            stack.push(U256::from_str(&from).unwrap())
+                        }
                         pc += 1;
                     },
                     _ => {

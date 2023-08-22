@@ -1,6 +1,4 @@
 use std::{str::FromStr, collections::HashMap};
-
-use ethers::abi::AbiEncode;
 use primitive_types::U256;
 use serde::Deserialize;
 
@@ -45,8 +43,13 @@ impl Memory {
 pub struct Tx {
     pub from: Option<String>,
     pub to: Option<String>,
+    pub origin: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Block {
+    pub coinbase: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct State(HashMap<String, Account>);
@@ -66,7 +69,7 @@ impl RustEVM {
         RustEVM { memory: Memory::new() }
     }
 
-    pub fn evaluate(mut self, code: &[u8], tx: &Option<Tx>, state: &Option<State>) -> Vec<U256> {
+    pub fn evaluate(mut self, code: &[u8], tx: &Option<Tx>, state: &Option<State>, block: &Option<Block>) -> Vec<U256> {
 
         let mut stack: Vec<U256> = Vec::new();
 
@@ -405,6 +408,13 @@ impl RustEVM {
                         }
                         pc += 1;
                     },
+                    ORIGIN => {
+                        if let Some(origin) = tx.as_ref().and_then(|t| t.origin.clone()) {
+                            println!("origin: {}", origin);
+                            stack.push(U256::from_str(&origin).unwrap())
+                        }
+                        pc += 1;
+                    },
                     BALANCE => {
                         let Some(address_value) = stack.pop() else {
                             continue;
@@ -417,10 +427,15 @@ impl RustEVM {
 
                         if let Some(account) = state.as_ref().and_then(|s: &State| s.0.get(&eth_address.to_lowercase())) {
                             let balance = account.balance.clone().unwrap();
-                            // println!("balance: {}", account.balance.unwrap());
                             stack.push(U256::from_str(&balance).unwrap())
                         } else {
                             stack.push(U256::from(0))
+                        }
+                        pc += 1;
+                    },
+                    COINBASE => {
+                        if let Some(coinbase) = block.as_ref().and_then(|b| b.coinbase.clone()) {
+                            stack.push(U256::from_str(&coinbase).unwrap())
                         }
                         pc += 1;
                     },

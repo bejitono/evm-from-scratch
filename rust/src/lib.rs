@@ -1,4 +1,4 @@
-use std::{str::FromStr, collections::HashMap};
+use std::{str::FromStr, collections::HashMap, cmp::min};
 use ethers::types::Diff;
 use primitive_types::U256;
 use serde::Deserialize;
@@ -46,6 +46,8 @@ pub struct Tx {
     pub to: Option<String>,
     pub origin: Option<String>,
     pub gasprice: Option<String>,
+    pub value: Option<String>,
+    pub data: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -425,6 +427,30 @@ impl RustEVM {
                     GASPRICE => {
                         if let Some(gasprice) = tx.as_ref().and_then(|t| t.gasprice.clone()) {
                             stack.push(U256::from_str(&gasprice).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    CALLVALUE => {
+                        if let Some(gasprice) = tx.as_ref().and_then(|t| t.value.clone()) {
+                            stack.push(U256::from_str(&gasprice).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    CALLDATALOAD => {
+                        let index = stack.pop().unwrap().as_usize(); // TODO: Use i
+
+                        if let Some(data_hex) = tx.as_ref().and_then(|t| t.data.clone()) {
+                            if index < data_hex.len() {
+                                let data = hex::decode(data_hex).expect("Decoding failed");
+                                let have_bytes = min(data.len() - index, 32);
+                                let mut bytes = [0u8; 32];
+                                bytes[..have_bytes].copy_from_slice(&data[index..index + have_bytes]);
+                                // [offset..(value.len() + offset)]
+                                // let data2 = data[i..i - 32];
+                                stack.push(U256::from_big_endian(&bytes))
+                            } else {
+                                stack.push(U256::zero())
+                            }
                         }
                         pc += 1;
                     },

@@ -1,4 +1,5 @@
 use std::{str::FromStr, collections::HashMap};
+use ethers::types::Diff;
 use primitive_types::U256;
 use serde::Deserialize;
 
@@ -44,11 +45,17 @@ pub struct Tx {
     pub from: Option<String>,
     pub to: Option<String>,
     pub origin: Option<String>,
+    pub gasprice: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Block {
     pub coinbase: Option<String>,
+    pub timestamp: Option<String>,
+    pub number: Option<String>,
+    pub difficulty: Option<String>,
+    pub gaslimit: Option<String>,
+    pub chainid: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -415,6 +422,12 @@ impl RustEVM {
                         }
                         pc += 1;
                     },
+                    GASPRICE => {
+                        if let Some(gasprice) = tx.as_ref().and_then(|t| t.gasprice.clone()) {
+                            stack.push(U256::from_str(&gasprice).unwrap())
+                        }
+                        pc += 1;
+                    },
                     BALANCE => {
                         let Some(address_value) = stack.pop() else {
                             continue;
@@ -436,6 +449,36 @@ impl RustEVM {
                     COINBASE => {
                         if let Some(coinbase) = block.as_ref().and_then(|b| b.coinbase.clone()) {
                             stack.push(U256::from_str(&coinbase).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    TIMESTAMP => {
+                        if let Some(timestamp) = block.as_ref().and_then(|b| b.timestamp.clone()) {
+                            stack.push(U256::from_str(&timestamp).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    DIFFICULTY => {
+                        if let Some(difficulty) = block.as_ref().and_then(|b| b.difficulty.clone()) {
+                            stack.push(U256::from_str(&difficulty).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    NUMBER => {
+                        if let Some(number) = block.as_ref().and_then(|b| b.number.clone()) {
+                            stack.push(U256::from_str(&number).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    CHAINID => {
+                        if let Some(chainid) = block.as_ref().and_then(|b| b.chainid.clone()) {
+                            stack.push(U256::from_str(&chainid).unwrap())
+                        }
+                        pc += 1;
+                    },
+                    GASLIMIT => {
+                        if let Some(gaslimit) = block.as_ref().and_then(|b| b.gaslimit.clone()) {
+                            stack.push(U256::from_str(&gaslimit).unwrap())
                         }
                         pc += 1;
                     },

@@ -454,6 +454,31 @@ impl RustEVM {
                         }
                         pc += 1;
                     },
+                    CALLDATASIZE => {
+                        if let Some(data_hex) = tx.as_ref().and_then(|t| t.data.clone()) {
+                            let data = hex::decode(data_hex).expect("Decoding failed");
+                            println!("lenght {}", data.len());
+                            stack.push(U256::from(data.len()))
+                        } else {
+                            stack.push(U256::zero())
+                        }
+                        pc += 1;
+                    },
+                    CALLDATACOPY => {
+                        let memory_offset = stack.pop().unwrap_or_default().as_usize();
+                        let data_offset = stack.pop().unwrap_or_default().as_usize();
+                        let length = stack.pop().unwrap_or_default().as_usize();
+
+                        println!("memory offset {}, data offset: {} length {}", memory_offset, data_offset, length);
+
+                        let tx_data = tx.as_ref().and_then(|t| t.data.clone());
+                        if let Some(data_hex) = tx_data {
+                            let data = hex::decode(data_hex).expect("Decoding failed");
+                            let data_end = min(data_offset, data.len());
+                            println!("dataend {}", data_end);
+                            self.memory.store(memory_offset, &data[data_end..data_end + length]);
+                        }
+                    },
                     BALANCE => {
                         let Some(address_value) = stack.pop() else {
                             continue;

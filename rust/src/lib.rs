@@ -63,9 +63,15 @@ pub struct Block {
 #[derive(Debug, Deserialize)]
 pub struct State(HashMap<String, Account>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Account {
     pub balance: Option<String>,
+    pub code: Option<AccountCode>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccountCode {
+    pub bin: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -475,9 +481,48 @@ impl RustEVM {
                         if let Some(data_hex) = tx_data {
                             let data = hex::decode(data_hex).expect("Decoding failed");
                             let data_end = min(data_offset, data.len());
-                            println!("dataend {}", data_end);
                             self.memory.store(memory_offset, &data[data_end..data_end + length]);
                         }
+                    },
+                    CODESIZE => {
+                        stack.push(U256::from(code.len()));
+                        pc += 1;
+                    },
+                    CODECOPY => {
+                        let memory_offset = stack.pop().unwrap_or_default().as_usize();
+                        let data_offset = stack.pop().unwrap_or_default().as_usize();
+                        let length = stack.pop().unwrap_or_default().as_usize();
+
+                        let data_end = min(data_offset, code.len());
+                        let code_length = min(length, code.len());
+                        
+                        println!("memory offset {}, data offset: {} length {} data end {}", memory_offset, data_offset, length, data_end);
+
+                        self.memory.store(memory_offset, &code[data_end..data_end + code_length]);
+                        // pc += 1;
+                    },
+                    EXTCODESIZE => {
+                        let Some(address_value) = stack.pop() else {
+                            continue;
+                        };
+                        
+                        let eth_address = self.toAddress(address_value);
+
+                        println!("address: {:?}", eth_address);
+                        println!("state: {:?}", state);
+
+                        if let Some(account) = state.as_ref().and_then(|s| s.0.get(&eth_address.to_lowercase())) {
+                            if let Some(account_code) = account.code.clone() {
+                                let code_hex = account_code.clone().bin.unwrap_or_default();
+                                let code_data = hex::decode(code_hex).unwrap_or_default();
+                                stack.push(U256::from(code_data.len()))
+                            } else {
+                                stack.push(U256::from(0))
+                            }
+                        } else {
+                            stack.push(U256::from(0))
+                        }
+                        pc += 1;
                     },
                     BALANCE => {
                         let Some(address_value) = stack.pop() else {

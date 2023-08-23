@@ -681,7 +681,15 @@ impl RustEVM {
 
                         stack.push(value);
 
-                        // pc += 1;
+                        pc += 1;
+                    },
+                    RETURN => {
+                        stack.clear();
+                        break
+                    },
+                    REVERT => {
+                        stack.clear();
+                        break
                     },
                     _ => {
                         break

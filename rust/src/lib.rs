@@ -1,7 +1,8 @@
 use std::{str::FromStr, collections::HashMap, cmp::min};
-use ethers::types::Diff;
 use primitive_types::U256;
 use serde::Deserialize;
+
+// Memory
 
 #[derive(Debug, Clone)]
 struct Memory {
@@ -61,10 +62,10 @@ pub struct Block {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct State(HashMap<String, Account>);
+pub struct StateInfo(HashMap<String, AccountInfo>);
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct Account {
+pub struct AccountInfo {
     pub balance: Option<String>,
     pub code: Option<AccountCode>,
 }
@@ -73,6 +74,53 @@ pub struct Account {
 pub struct AccountCode {
     pub bin: Option<String>,
 }
+
+// Account
+
+pub type State = HashMap<String, Account>;
+
+pub struct Account {
+    pub storage: HashMap<U256, StorageSlot>,
+}
+
+impl Account {
+    fn new() -> Self {
+        Account {
+            storage: HashMap::default(),
+        }
+    }
+
+    fn sstore(&mut self, key: U256, value: U256) {
+        if let Some(storage) = self.storage.get_mut(&key) {
+            storage.value = value
+        } else {
+            let storage = StorageSlot::new(value);
+            self.storage.insert(key, storage);
+        }
+    }
+
+    fn sload(&self, key: U256) -> U256 {
+        if let Some(storage) = self.storage.get(&key) {
+            storage.value
+        } else {
+            U256::zero()
+        }
+    }
+}
+
+pub struct StorageSlot {
+    pub value: U256
+}
+
+impl StorageSlot {
+    fn new(value: U256) -> Self {
+        Self {
+            value,
+        }
+    }
+}
+
+// EVM
 
 #[derive(Debug, Clone)]
 pub struct RustEVM {
@@ -84,7 +132,9 @@ impl RustEVM {
         RustEVM { memory: Memory::new() }
     }
 
-    pub fn evaluate(mut self, code: &[u8], tx: &Option<Tx>, state: &Option<State>, block: &Option<Block>) -> Vec<U256> {
+    pub fn evaluate(mut self, code: &[u8], tx: &Option<Tx>, state: &Option<StateInfo>, block: &Option<Block>) -> Vec<U256> {
+
+        let mut account = Account::new();
 
         let mut stack: Vec<U256> = Vec::new();
 
@@ -558,7 +608,7 @@ impl RustEVM {
                         println!("address: {:?}", eth_address);
                         println!("state: {:?}", state);
 
-                        if let Some(account) = state.as_ref().and_then(|s: &State| s.0.get(&eth_address.to_lowercase())) {
+                        if let Some(account) = state.as_ref().and_then(|s| s.0.get(&eth_address.to_lowercase())) {
                             let balance = account.balance.clone().unwrap();
                             stack.push(U256::from_str(&balance).unwrap())
                         } else {
@@ -571,7 +621,7 @@ impl RustEVM {
                             continue;
                         };
                         
-                        if let Some(account) = state.as_ref().and_then(|s: &State| s.0.get(&to_address.to_lowercase())) {
+                        if let Some(account) = state.as_ref().and_then(|s| s.0.get(&to_address.to_lowercase())) {
                             let balance = account.balance.clone().unwrap();
                             stack.push(U256::from_str(&balance).unwrap())
                         } else {
@@ -614,6 +664,24 @@ impl RustEVM {
                             stack.push(U256::from_str(&gaslimit).unwrap())
                         }
                         pc += 1;
+                    },
+                    SSTORE => {
+                        let key = stack.pop().unwrap();
+                        let value = stack.pop().unwrap();
+
+                        account.sstore(key, value);
+                        println!("stored key {} value {}", key , value);
+                        // pc += 1;
+                    },
+                    SLOAD => {
+                        let key = stack.pop().unwrap();
+
+                        let value = account.sload(key);
+                        println!("loaded value {}", value);
+
+                        stack.push(value);
+
+                        // pc += 1;
                     },
                     _ => {
                         break

@@ -1,4 +1,4 @@
-use evm::{RustEVM, Tx, State, Block};
+use evm::{RustEVM, Tx, StateInfo, Block};
 use primitive_types::U256;
 use serde::Deserialize;
 
@@ -8,7 +8,7 @@ struct Evmtest {
     code: Code,
     expect: Expect,
     tx: Option<Tx>,
-    state: Option<State>,
+    state: Option<StateInfo>,
     block: Option<Block>,
 }
 

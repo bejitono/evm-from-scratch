@@ -524,6 +524,30 @@ impl RustEVM {
                         }
                         pc += 1;
                     },
+                    EXTCODECOPY => {
+
+                        let Some(address_value) = stack.pop() else {
+                            continue;
+                        };
+                        
+                        let eth_address = self.toAddress(address_value);
+                        
+                        let memory_offset = stack.pop().unwrap_or_default().as_usize();
+                        let data_offset = stack.pop().unwrap_or_default().as_usize();
+                        let length = stack.pop().unwrap_or_default().as_usize();
+
+                        println!("memory offset {}, data offset: {} length {}", memory_offset, data_offset, length);
+
+                        if let Some(account) = state.as_ref().and_then(|s| s.0.get(&eth_address.to_lowercase())) {
+                            if let Some(account_code) = account.code.clone() {
+                                let bin_hex = account_code.bin.unwrap_or_default();
+                                let data = hex::decode(bin_hex).expect("Decoding failed");
+                                let data_end = min(data_offset + length, data.len());
+                                let memory_data_end = memory_offset + (data_end - data_offset);
+                                self.memory.store(memory_offset, &data[memory_offset..memory_data_end]);
+                            }
+                        }
+                    },
                     BALANCE => {
                         let Some(address_value) = stack.pop() else {
                             continue;
@@ -535,6 +559,19 @@ impl RustEVM {
                         println!("state: {:?}", state);
 
                         if let Some(account) = state.as_ref().and_then(|s: &State| s.0.get(&eth_address.to_lowercase())) {
+                            let balance = account.balance.clone().unwrap();
+                            stack.push(U256::from_str(&balance).unwrap())
+                        } else {
+                            stack.push(U256::from(0))
+                        }
+                        pc += 1;
+                    },
+                    SELFBALANCE => {
+                        let Some(to_address) = tx.as_ref().and_then(|t| t.to.clone()) else {
+                            continue;
+                        };
+                        
+                        if let Some(account) = state.as_ref().and_then(|s: &State| s.0.get(&to_address.to_lowercase())) {
                             let balance = account.balance.clone().unwrap();
                             stack.push(U256::from_str(&balance).unwrap())
                         } else {
